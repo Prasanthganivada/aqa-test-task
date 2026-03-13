@@ -8,11 +8,8 @@ const testUser = {
 test.describe('Tasks UI - CRUD Operations', () => {
   let projectName: string;
 
-  test.beforeEach(async ({ loginPage, projectsPage }) => {
-    // Login and create a test project before each test
-    await loginPage.navigateToLogin();
-    await loginPage.login(testUser.username, testUser.password);
-    
+  test.beforeEach(async ({ projectsPage }) => {
+    // storageState provides pre-authenticated session
     projectName = `Task_Test_Project_${Date.now()}`;
     await projectsPage.navigateToProjects();
     await projectsPage.createProject(projectName);
@@ -105,23 +102,15 @@ test.describe('Tasks UI - CRUD Operations', () => {
     }
   });
 
-  test.afterEach(async ({ projectsPage }) => {
-    // Navigate back and logout
-    try {
-      await projectsPage.page.goBack().catch(() => {});
-      await projectsPage.logout().catch(() => {});
-    } catch (error) {
-      console.warn('Cleanup error:', error);
-    }
+  test.afterEach(async ({ page }) => {
+    // Quick cleanup - just dismiss overlays, no complex navigation
+    await page.keyboard.press('Escape').catch(() => {});
   });
 });
 
 test.describe('Tasks Advanced Features', () => {
-  test('should filter completed tasks', async ({ loginPage, projectsPage, projectDetailPage }) => {
-    // Setup
-    await loginPage.navigateToLogin();
-    await loginPage.login(testUser.username, testUser.password);
-    
+  test('should filter completed tasks', async ({ projectsPage, projectDetailPage }) => {
+    // storageState provides pre-authenticated session
     const projectName = `Filter_Test_${Date.now()}`;
     await projectsPage.navigateToProjects();
     await projectsPage.createProject(projectName);
@@ -142,11 +131,8 @@ test.describe('Tasks Advanced Features', () => {
     expect(taskCount).toBeGreaterThanOrEqual(2);
   });
 
-  test('should maintain task state across page navigation', async ({ loginPage, projectsPage, projectDetailPage }) => {
-    // Setup
-    await loginPage.navigateToLogin();
-    await loginPage.login(testUser.username, testUser.password);
-    
+  test('should maintain task state across page navigation', async ({ projectsPage, projectDetailPage }) => {
+    // storageState provides pre-authenticated session
     const projectName = `State_Test_${Date.now()}`;
     await projectsPage.navigateToProjects();
     await projectsPage.createProject(projectName);
@@ -157,7 +143,7 @@ test.describe('Tasks Advanced Features', () => {
     await projectDetailPage.createTask(taskName);
     
     // Go back to projects list
-    await projectDetailPage.goBack();
+    await projectsPage.navigateToProjects();
     
     // Navigate back to project
     await projectsPage.clickProject(projectName);

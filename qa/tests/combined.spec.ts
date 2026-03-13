@@ -10,8 +10,24 @@ const testUser = {
   password: 'TestPassword123!',
 };
 
-// Shared API instance for combined tests
-let sharedAPI: VikunjaAPI | null = null;
+// Promise-based singleton to safely share API across parallel tests in the same worker
+let apiPromise: Promise<VikunjaAPI> | null = null;
+
+function getSharedAPI(): Promise<VikunjaAPI> {
+  if (!apiPromise) {
+    apiPromise = (async () => {
+      const requestContext = await playwrightRequest.newContext({
+        baseURL: process.env['BASE_URL'] || 'http://localhost:8080',
+      });
+      const api = new VikunjaAPI(requestContext);
+      // Wait briefly to let auth tests finish and rate limit window reset
+      await new Promise(r => setTimeout(r, 2000));
+      await api.loginUser(testUser.username, testUser.password);
+      return api;
+    })();
+  }
+  return apiPromise;
+}
 
 const test = base.extend<{
   loginPage: LoginPage;
@@ -29,19 +45,14 @@ const test = base.extend<{
     await use(new ProjectDetailPage(page));
   },
   authenticatedAPI: async ({}, use) => {
-    if (!sharedAPI) {
-      const requestContext = await playwrightRequest.newContext({
-        baseURL: 'http://localhost:8080',
-      });
-      sharedAPI = new VikunjaAPI(requestContext);
-      await sharedAPI.loginUser(testUser.username, testUser.password);
-    }
-    await use(sharedAPI);
+    const api = await getSharedAPI();
+    await use(api);
   },
 });
 
 test.describe('Combined UI/API Tests', () => {
-  test('should create project via API and verify in UI', async ({ loginPage, projectsPage, authenticatedAPI, page }) => {
+
+  test('should create project via API and verify in UI', async ({ projectsPage, authenticatedAPI, page }) => {
     // Step 1: Create project via API
     const projectName = `Combined_Project_${Date.now()}`;
     const apiProject = await authenticatedAPI.createProject({
@@ -51,11 +62,7 @@ test.describe('Combined UI/API Tests', () => {
     
     expect(apiProject.id).toBeDefined();
     
-    // Step 2: Login in UI
-    await loginPage.navigateToLogin();
-    await loginPage.login(testUser.username, testUser.password);
-    
-    // Step 3: Navigate to projects and verify the API-created project is visible
+    // Step 2: Navigate to projects (storageState provides pre-authenticated session)
     await projectsPage.navigateToProjects();
     await page.waitForTimeout(1000);
     
@@ -63,7 +70,7 @@ test.describe('Combined UI/API Tests', () => {
     expect(projectElement).toBeDefined();
   });
 
-  test('should create task via API and verify in UI', async ({ loginPage, projectsPage, projectDetailPage, authenticatedAPI, page }) => {
+  test('should create task via API and verify in UI', async ({ projectsPage, projectDetailPage, authenticatedAPI, page }) => {
     // Step 1: Create project and task via API
     const project = await authenticatedAPI.createProject({
       title: `Combined_Project_${Date.now()}`,
@@ -77,11 +84,7 @@ test.describe('Combined UI/API Tests', () => {
     
     expect(apiTask.id).toBeDefined();
     
-    // Step 2: Login in UI
-    await loginPage.navigateToLogin();
-    await loginPage.login(testUser.username, testUser.password);
-    
-    // Step 3: Navigate to project and verify task is visible
+    // Step 2: Navigate to project (storageState provides pre-authenticated session)
     await projectsPage.navigateToProjects();
     await projectsPage.clickProject(project.title);
     await page.waitForTimeout(1000);
@@ -90,7 +93,7 @@ test.describe('Combined UI/API Tests', () => {
     expect(taskElement).toBeDefined();
   });
 
-  test('should complete task in UI and verify via API', async ({ loginPage, projectsPage, projectDetailPage, authenticatedAPI, page }) => {
+  test('should complete task in UI and verify via API', async ({ projectsPage, projectDetailPage, authenticatedAPI, page }) => {
     // Step 1: Setup via API - Create project and task
     const project = await authenticatedAPI.createProject({
       title: `Combined_Project_${Date.now()}`,
@@ -102,22 +105,20 @@ test.describe('Combined UI/API Tests', () => {
       projectID: project.id,
     });
     
-    // Step 2: Complete task in UI
-    await loginPage.navigateToLogin();
-    await loginPage.login(testUser.username, testUser.password);
+    // Step 2: Complete task in UI (storageState provides pre-authenticated session)
     await projectsPage.navigateToProjects();
     await projectsPage.clickProject(project.title);
     await projectDetailPage.completeTask(taskTitle);
     
     // Step 3: Verify task completion via API
-    await page.waitForTimeout(500);
+    await page.waitForTimeout(2000);
     const updatedTask = await authenticatedAPI.getTask(apiTask.id);
     
-    // The done_since field should be set when task is completed
-    expect(updatedTask.done_since || updatedTask.done).toBeTruthy();
+    // Vikunja uses 'done' boolean field for task completion status
+    expect(updatedTask.done).toBeTruthy();
   });
 
-  test('should delete project via UI and verify via API', async ({ loginPage, projectsPage, authenticatedAPI, page }) => {
+  test('should delete project via UI and verify via API', async ({ projectsPage, authenticatedAPI, page }) => {
     // Step 1: Create project via API
     const projectName = `Combined_Project_Delete_${Date.now()}`;
     const apiProject = await authenticatedAPI.createProject({
@@ -125,9 +126,7 @@ test.describe('Combined UI/API Tests', () => {
     });
     const projectID = apiProject.id;
     
-    // Step 2: Delete project via UI
-    await loginPage.navigateToLogin();
-    await loginPage.login(testUser.username, testUser.password);
+    // Step 2: Delete project via UI (storageState provides pre-authenticated session)
     await projectsPage.navigateToProjects();
     await projectsPage.deleteProject(projectName);
     

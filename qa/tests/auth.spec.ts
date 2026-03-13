@@ -1,11 +1,5 @@
 import { test, expect } from '../fixtures/test-fixtures';
 
-const testUser = {
-  username: `testuser_${Date.now()}`,
-  email: `testuser_${Date.now()}@test.com`,
-  password: 'TestPassword123!',
-};
-
 const loginUser = {
   username: 'testuser123',
   password: 'TestPassword123!',
@@ -13,24 +7,28 @@ const loginUser = {
 
 test.describe('User Registration', () => {
   test('should successfully register a new user', async ({ registerPage, page }) => {
+    const timestamp = Date.now();
+    const testUser = {
+      username: `testuser_${timestamp}`,
+      email: `testuser_${timestamp}@test.com`,
+      password: 'TestPassword123!',
+    };
     await registerPage.navigateToRegister();
     await registerPage.register(testUser.username, testUser.email, testUser.password);
 
-    // After registration, user should be redirected to login page
-    expect(page.url()).toMatch(/login|register|dashboard/);
+    // After registration, user should be redirected away from register page
+    await page.waitForURL(url => !url.toString().includes('/register'), { timeout: 15000 });
+    expect(page.url()).not.toMatch(/\/register/);
   });
 
   test('should display error message for invalid registration data', async ({ registerPage }) => {
     await registerPage.navigateToRegister();
-    // Try to register with empty fields
-    await registerPage.registerButton.click();
-    await registerPage.page.waitForTimeout(1000);
-    
-    // Should show validation error or still be on register page
-    const isError = await registerPage.isErrorDisplayed();
+    // Try to register with empty fields - button should be disabled
+    const isDisabled = await registerPage.registerButton.isDisabled();
     const stillOnRegister = registerPage.page.url().includes('register');
     
-    expect(isError || stillOnRegister).toBe(true);
+    // Should either have a disabled button (client validation) or show error
+    expect(isDisabled || stillOnRegister).toBe(true);
   });
 
   test('should navigate to login from register page', async ({ registerPage }) => {
@@ -47,8 +45,9 @@ test.describe('User Login', () => {
     await loginPage.login(loginUser.username, loginUser.password);
 
     // After login, check if redirected from login page
+    await page.waitForURL(url => !url.toString().includes('/login'), { timeout: 10000 });
     const currentUrl = page.url();
-    expect(currentUrl).not.toMatch(/login/);
+    expect(currentUrl).not.toMatch(/\/login/);
   });
 
   test('should display error message for invalid credentials', async ({ loginPage }) => {

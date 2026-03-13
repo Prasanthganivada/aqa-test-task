@@ -26,8 +26,10 @@ qa/
 │   │   └── auth.smoke.spec.ts
 │   ├── api/                    # API-only tests
 │   │   └── projects.api.spec.ts
+│   ├── auth.setup.ts           # Auth setup: saves storageState for reuse
 │   ├── auth.spec.ts            # User registration & login tests
 │   ├── projects.ui.spec.ts     # Project CRUD UI tests
+│   ├── tasks.ui.spec.ts        # Task CRUD UI tests
 │   └── combined.spec.ts        # Combined UI/API integration tests
 ├── pages/                      # Page Object Model (POM)
 │   ├── BasePage.ts             # Base page class with common methods
@@ -38,7 +40,10 @@ qa/
 ├── api/                        # API helpers for combined testing
 │   └── VikunjaAPI.ts           # Vikunja API client wrapper
 ├── fixtures/                   # Playwright test fixtures
-│   └── test-fixtures.ts        # Page object fixtures
+│   ├── test-fixtures.ts        # Page object fixtures
+│   ├── api-fixtures.ts         # Authenticated API fixtures with retry
+│   └── helpers.ts              # Test data, navigation & verification helpers
+├── config.ts                   # Centralized test configuration & constants
 ├── playwright.config.ts        # Playwright configuration
 ├── tsconfig.json               # TypeScript configuration
 ├── package.json                # Dependencies & scripts

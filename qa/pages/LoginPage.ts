@@ -11,26 +11,43 @@ export class LoginPage extends BasePage {
     super(page);
     this.usernameInput = this.page.locator('input[name="username"], input#username, input[placeholder*="username" i]').first();
     this.passwordInput = this.page.locator('input[type="password"]').first();
-    this.loginButton = this.page.locator('button:has-text("Sign in"), button:has-text("Login"), button[type="submit"]').first();
+    this.loginButton = this.page.locator('button:has-text("Login"), button:has-text("Sign in"), button[type="submit"]').first();
     this.errorMessage = this.page
-      .locator('[role="alert"], .error, .alert-danger, .notification-error, :text-matches("wrong username or password", "i")')
+      .locator('.message.danger, [role="alert"], .error, .alert-danger, .notification-error')
       .first();
   }
 
   async navigateToLogin() {
-    await this.goto('/auth/login');
-    await this.page.waitForLoadState('load');
+    await this.goto('/login');
+    await this.usernameInput.waitFor({ state: 'visible', timeout: 30000 });
   }
 
   async login(username: string, password: string) {
-    await this.usernameInput.fill(username);
-    await this.passwordInput.fill(password);
-    await this.loginButton.click();
+    for (let attempt = 0; attempt < 5; attempt++) {
+      if (attempt > 0) {
+        await this.page.waitForTimeout(3000 + attempt * 3000);
+        await this.navigateToLogin();
+      }
 
-    await Promise.race([
-      this.page.waitForURL(/dashboard|project/i, { timeout: 10000 }).catch(() => null),
-      this.errorMessage.waitFor({ state: 'visible', timeout: 10000 }).catch(() => null),
-    ]);
+      await this.usernameInput.fill(username);
+      await this.passwordInput.fill(password);
+      await this.loginButton.click();
+
+      await Promise.race([
+        this.page.waitForURL((url) => !url.pathname.includes('/login'), { timeout: 10000 }).catch(() => null),
+        this.errorMessage.waitFor({ state: 'visible', timeout: 10000 }).catch(() => null),
+      ]);
+
+      // Login succeeded — navigated away from /login
+      if (!this.page.url().includes('/login')) {
+        return;
+      }
+
+      // Error message visible — login failed as expected, stop retrying
+      if (await this.errorMessage.isVisible().catch(() => false)) {
+        return;
+      }
+    }
   }
 
   async getErrorMessage(): Promise<string> {

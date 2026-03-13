@@ -22,6 +22,10 @@ services:
       VIKUNJA_DATABASE_USER: vikunja
       VIKUNJA_SERVICE_JWTSECRET: "very-complex-secret-key"
       VIKUNJA_SERVICE_PUBLICURL: http://localhost:8080/
+      VIKUNJA_RATELIMIT_ENABLED: "false"
+      VIKUNJA_RATELIMIT_KIND: user
+      VIKUNJA_RATELIMIT_LIMIT: 1000
+      VIKUNJA_RATELIMIT_PERIOD: 10
     ports:
       - 8080:3456
     volumes:

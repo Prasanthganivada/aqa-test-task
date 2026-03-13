@@ -55,26 +55,41 @@ export class VikunjaAPI {
   }
 
   async loginUser(username: string, password: string): Promise<string> {
-    try {
-      const response = await this.request.post(this.getApiUrl('/login'), {
-        data: {
-          username,
-          password,
-        },
-      });
-      
-      if (!response.ok()) {
-        const text = await response.text();
-        throw new Error(`Login failed: ${response.status()} - ${text}`);
+    const maxAttempts = 10;
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      try {
+        const response = await this.request.post(this.getApiUrl('/login'), {
+          data: {
+            username,
+            password,
+          },
+        });
+
+        if (response.status() === 429) {
+          const delay = 5000 + attempt * 5000;
+          console.warn(`Login rate-limited (429), retrying in ${delay}ms (attempt ${attempt + 1}/${maxAttempts})`);
+          await new Promise(r => setTimeout(r, delay));
+          continue;
+        }
+
+        if (!response.ok()) {
+          const text = await response.text();
+          throw new Error(`Login failed: ${response.status()} - ${text}`);
+        }
+
+        const data = await response.json();
+        this.authToken = data.token;
+        return this.authToken;
+      } catch (error: any) {
+        if (attempt < maxAttempts - 1 && error?.message?.includes('429')) {
+          await new Promise(r => setTimeout(r, 5000 + attempt * 5000));
+          continue;
+        }
+        console.error('Login error:', error);
+        throw error;
       }
-      
-      const data = await response.json();
-      this.authToken = data.token;
-      return this.authToken;
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
     }
+    throw new Error(`Login failed after ${maxAttempts} attempts due to rate limiting`);
   }
 
   async getProjects(): Promise<any> {
@@ -100,7 +115,7 @@ export class VikunjaAPI {
   async createProject(project: VikunjaProject): Promise<any> {
     try {
       this.validateAuthToken();
-      const response = await this.request.post(this.getApiUrl('/projects'), {
+      const response = await this.request.put(this.getApiUrl('/projects'), {
         data: project,
         headers: {
           Authorization: `Bearer ${this.authToken}`,
@@ -142,7 +157,7 @@ export class VikunjaAPI {
   async updateProject(projectID: number, project: Partial<VikunjaProject>): Promise<any> {
     try {
       this.validateAuthToken();
-      const response = await this.request.put(this.getApiUrl(`/projects/${projectID}`), {
+      const response = await this.request.post(this.getApiUrl(`/projects/${projectID}`), {
         data: project,
         headers: {
           Authorization: `Bearer ${this.authToken}`,
@@ -184,7 +199,7 @@ export class VikunjaAPI {
   async createTask(task: VikunjaTask): Promise<any> {
     try {
       this.validateAuthToken();
-      const response = await this.request.post(this.getApiUrl('/tasks'), {
+      const response = await this.request.put(this.getApiUrl(`/projects/${task.projectID}/tasks`), {
         data: task,
         headers: {
           Authorization: `Bearer ${this.authToken}`,
@@ -226,7 +241,7 @@ export class VikunjaAPI {
   async updateTask(taskID: number, task: Partial<VikunjaTask>): Promise<any> {
     try {
       this.validateAuthToken();
-      const response = await this.request.put(this.getApiUrl(`/tasks/${taskID}`), {
+      const response = await this.request.post(this.getApiUrl(`/tasks/${taskID}`), {
         data: task,
         headers: {
           Authorization: `Bearer ${this.authToken}`,

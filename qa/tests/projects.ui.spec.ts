@@ -6,10 +6,8 @@ const testUser = {
 };
 
 test.describe('Projects UI - CRUD Operations', () => {
-  test.beforeEach(async ({ loginPage, projectsPage }) => {
-    // Login before each test
-    await loginPage.navigateToLogin();
-    await loginPage.login(testUser.username, testUser.password);
+  test.beforeEach(async ({ projectsPage }) => {
+    // storageState provides pre-authenticated session, just navigate
     await projectsPage.navigateToProjects();
   });
 
@@ -82,8 +80,8 @@ test.describe('Projects UI - CRUD Operations', () => {
     expect(countAfter).toBeLessThanOrEqual(countBefore);
   });
 
-  test.afterEach(async ({ projectsPage }) => {
-    // Logout after each test
-    await projectsPage.logout().catch(() => {});
+  test.afterEach(async ({ page }) => {
+    // Quick cleanup - dismiss overlays
+    await page.keyboard.press('Escape').catch(() => {});
   });
 });

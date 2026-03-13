@@ -1,7 +1,7 @@
 import { test, expect } from '../../fixtures/api-fixtures';
 
 test.describe('Projects API - CRUD Operations', () => {
-  test('should use authenticated API', async ({ authenticatedAPI, apiUser }) => {
+  test('should use authenticated API', async ({ apiUser }) => {
     expect(apiUser.username).toBeTruthy();
     expect(apiUser.token).toBeTruthy();
   });

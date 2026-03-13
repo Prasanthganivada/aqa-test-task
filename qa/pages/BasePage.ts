@@ -1,4 +1,5 @@
 import { Page } from '@playwright/test';
+import { TEST_CONFIG } from '../config';
 
 export class BasePage {
   readonly page: Page;
@@ -6,12 +7,12 @@ export class BasePage {
 
   constructor(page: Page) {
     this.page = page;
-    this.baseURL = 'http://localhost:8080';
+    this.baseURL = TEST_CONFIG.baseURL;
   }
 
   async goto(path: string = '') {
     const url = path.startsWith('http') ? path : `${this.baseURL}${path}`;
-    await this.page.goto(url);
+    await this.page.goto(url, { waitUntil: 'domcontentloaded' });
   }
 
   async waitForLoadState(state: 'load' | 'domcontentloaded' | 'networkidle' = 'load') {

@@ -12,71 +12,58 @@ export class ProjectDetailPage extends BasePage {
 
   constructor(page: Page) {
     super(page);
-    this.createTaskButton = this.page.locator('button:has-text("Add Task"), button:has-text("New Task"), button[data-testid="add-task"], button:has-text("Add")').first();
-    this.taskInput = this.page.locator('input[placeholder*="task" i], input[placeholder*="title" i], input[name="title"]').first();
-    this.tasksList = this.page.locator('[data-testid="task-item"], [data-testid="task"], .task-item, li[role="listitem"], li[data-testid*="task"]');
-    this.saveButton = this.page.locator('button:has-text("Save"), button:has-text("Add"), button[type="submit"]').first();
-    this.deleteTaskButton = this.page.locator('button:has-text("Delete Task"), button:has-text("Delete"), [data-testid="delete-task"]').first();
-    this.backButton = this.page.locator('button:has-text("Back"), a:has-text("Back"), [data-testid="back"]').first();
-    this.projectTitle = this.page.locator('h1, h2, .project-title, [data-testid="project-title"]').first();
+    this.createTaskButton = this.page.locator('button.add-task-button');
+    this.taskInput = this.page.locator('.add-task-textarea');
+    this.tasksList = this.page.locator('.tasks .task');
+    this.saveButton = this.page.locator('button.add-task-button');
+    this.deleteTaskButton = this.page.locator('button:has-text("Delete")').first();
+    this.backButton = this.page.locator('a:has-text("Back"), button:has-text("Back")').first();
+    this.projectTitle = this.page.locator('.project-title-button, h1').first();
+  }
+
+  /** Dismiss any modal/notification overlay that might block interactions */
+  private async dismissOverlays() {
+    await this.page.keyboard.press('Escape').catch(() => {});
+    await this.page.waitForTimeout(300);
+    await this.page.locator('.vue-notification-group .notification-content').waitFor({ state: 'hidden', timeout: 3000 }).catch(() => {});
   }
 
   async createTask(taskName: string) {
-    try {
-      await this.createTaskButton.click({ timeout: 5000 });
-    } catch (error) {
-      // Try alternative selectors
-      const altButton = this.page.locator('button:has-text("New")').first();
-      await altButton.click({ timeout: 5000 }).catch(() => {});
-    }
-    
+    await this.dismissOverlays();
     await this.taskInput.fill(taskName);
-    await this.saveButton.click();
+    // Wait for Add button to become enabled after text is entered
+    await this.page.locator('button.add-task-button:not([disabled])').waitFor({ state: 'visible', timeout: 5000 });
+    await this.createTaskButton.click();
     await this.page.waitForTimeout(500);
   }
 
   async completeTask(taskName: string) {
-    // Find the task row and its checkbox
-    const taskRow = this.page.locator(`text="${taskName}"`).first();
-    const checkbox = taskRow.locator('../..//input[type="checkbox"], ../input[type="checkbox"], input[type="checkbox"]').first();
-    
-    try {
-      await checkbox.check({ timeout: 5000 });
-    } catch {
-      // Try alternative approach - find checkbox near task text
-      const allCheckboxes = this.page.locator('input[type="checkbox"]');
-      for (let i = 0; i < await allCheckboxes.count(); i++) {
-        const checkbox = allCheckboxes.nth(i);
-        const parent = checkbox.locator('..');
-        const text = await parent.textContent();
-        if (text?.includes(taskName)) {
-          await checkbox.check();
-          break;
-        }
-      }
-    }
-    
+    await this.dismissOverlays();
+    const taskRow = this.page.locator(`.task:has-text("${taskName}")`).first();
+    const doneToggle = taskRow.locator('.fancycheckbox, input[type="checkbox"], [class*="check"]').first();
+    await doneToggle.click();
     await this.page.waitForTimeout(500);
   }
 
   async getTaskByName(name: string): Promise<Locator> {
-    return this.page.locator(`text="${name}"`).first();
+    return this.page.locator(`.task:has-text("${name}"), a:has-text("${name}")`).first();
   }
 
   async deleteTask(name: string) {
-    const task = await this.getTaskByName(name);
-    await task.hover();
-    
-    try {
-      await this.deleteTaskButton.click({ timeout: 5000 });
-    } catch {
-      // Try alternative delete button
-      const deleteBtn = task.locator('../..//button:has-text("Delete"), ../button:has-text("Delete")').first();
-      await deleteBtn.click({ timeout: 5000 }).catch(() => {});
-    }
-    
-    // Confirm deletion if modal appears
-    await this.page.locator('button:has-text("Confirm"), button:has-text("Yes"), button:has-text("Delete")').first().click({ timeout: 5000 }).catch(() => {});
+    await this.dismissOverlays();
+    // Click on the task to open its detail view
+    const taskLink = this.page.locator(`.task:has-text("${name}") a, a:has-text("${name}")`).first();
+    await taskLink.click();
+    await this.page.waitForLoadState('domcontentloaded');
+    await this.page.waitForTimeout(2000);
+
+    // In task detail, click delete
+    const deleteBtn = this.page.locator('button:has-text("Delete"), a:has-text("Delete")').first();
+    await deleteBtn.click({ timeout: 5000 });
+
+    // Confirm
+    await this.page.locator('button.is-danger, button:has-text("Do it"), button:has-text("Confirm")').first().click({ timeout: 5000 }).catch(() => {});
+    await this.page.waitForTimeout(500);
   }
 
   async getTaskCount(): Promise<number> {
@@ -84,7 +71,9 @@ export class ProjectDetailPage extends BasePage {
   }
 
   async goBack() {
-    await this.backButton.click();
-    await this.page.waitForLoadState('load');
+    await this.dismissOverlays();
+    await this.page.goBack();
+    await this.page.waitForLoadState('domcontentloaded');
+    await this.page.waitForTimeout(1000);
   }
 }
